@@ -106,7 +106,15 @@ func main() {
 		log.Fatalln("Could not get hostname", err)
 	}
 
-	runtime.GOMAXPROCS(6)
+	ncpus := runtime.NumCPU()
+
+	ncpus /= 2
+	if ncpus > 6 {
+		ncpus = 6
+	}
+
+	log.Printf("Using up to %d CPUs for sha256'ing\n", ncpus)
+	runtime.GOMAXPROCS(ncpus)
 
 	vhost := new(VHost)
 	vhost.FileListLocation = "http://storage-hc.dal01.netdna.com/sha256-small.txt"
