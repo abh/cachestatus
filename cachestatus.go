@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,7 +18,7 @@ var ServerName string
 type File struct {
 	Path           string
 	Sha256Expected string
-	Sha256Actual   string
+	Size           int64
 	LastModified   time.Time
 	LastChecked    time.Time
 	Cached         bool
@@ -25,7 +26,28 @@ type File struct {
 
 type FileChannel chan *File
 
-func main() {
+var VERSION string = "1.1"
+
+var (
+	flagListLocation       = flag.String("filelist", "", "URL for filelist or manifest")
+	flagCreateManifestPath = flag.String("createmanifest", "", "path for manifest to be created")
+	flagServer             = flag.String("server", "localhost", "Server to check")
+	flagHostname           = flag.String("hostname", "", "Host header for checks or source for creating manifest")
+	flagChecksum           = flag.Bool("checksum", false, "Check (or create) checksums")
+	flagVersion            = flag.Bool("version", false, "Show version")
+	flagVerbose            = flag.Bool("verbose", false, "Verbose output")
+)
+
+func init() {
+	log.SetPrefix("cachestatus ")
+	// log.SetFlags(log.Lmicroseconds | log.Lshortfile)
+
+	flag.Parse()
+
+	if *flagVersion {
+		fmt.Println("cachestatus", VERSION)
+		os.Exit(0)
+	}
 
 	var err error
 
@@ -41,17 +63,25 @@ func main() {
 		ncpus = 6
 	}
 
-	log.Printf("Using up to %d CPUs for sha256'ing\n", ncpus)
+	if *flagVerbose {
+		log.Printf("Using up to %d CPUs for sha256'ing\n", ncpus)
+	}
 	runtime.GOMAXPROCS(ncpus)
 
-	vhost := new(VHost)
-	vhost.FileListLocation = "http://storage-hc.dal01.netdna.com/sha256-small.txt"
-	vhost.FileListLocation = "http://storage-hc.dal01.netdna.com/sha256.txt"
+}
 
-	vhost.Hostname = "hcinstall.tera-online.com"
+func main() {
+
+	if len(*flagListLocation) == 0 {
+		log.Fatalln("-filelist url option is required")
+	}
+
+	vhost := new(VHost)
+	vhost.FileListLocation = *flagListLocation
+	vhost.Hostname = *flagHostname
 
 	log.Println("Getting file list")
-	err = getFileList(vhost)
+	err := getFileList(vhost)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -63,7 +93,20 @@ func main() {
 
 	status := NewStatus(nworkers)
 
-	w := NewWorkerGroup(vhost, status, workQueue)
+	w := NewWorkerGroup(vhost, *flagServer, status, workQueue)
+
+	if *flagChecksum {
+		w.Options.Checksum = true
+	}
+
+	if len(*flagCreateManifestPath) > 0 {
+		manifest, err := CreateManifest(*flagCreateManifestPath)
+		if err != nil {
+			log.Fatalf("Could not open manifest '%s': %s", *flagCreateManifestPath, err)
+		}
+		defer manifest.Close()
+		w.SetOutput(manifest.in)
+	}
 
 	for n := 0; n < nworkers; n++ {
 		log.Println("starting worker", n)
@@ -83,12 +126,18 @@ func main() {
 	}
 
 	time.Sleep(5 * time.Second)
-	log.Println("exiting")
+
+	for n, st := range status.Status {
+		log.Println(n, st.Current, st.Status)
+	}
 
 	for _, path := range status.BadFiles {
 		fmt.Println(path)
 	}
 
+	status.Quit()
+
+	log.Println("exiting")
 }
 
 func getFileList(vhost *VHost) error {
@@ -100,15 +149,19 @@ func getFileList(vhost *VHost) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("Could not get file list: %d %s", resp.StatusCode, err)
+		return fmt.Errorf("Could not get file list '%s': %d", url, resp.StatusCode)
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		shaPath := strings.SplitN(scanner.Text(), "  .", 2)
 		file := new(File)
-		file.Sha256Expected = shaPath[0]
-		file.Path = shaPath[1]
+		if len(shaPath) > 1 {
+			file.Sha256Expected = shaPath[0]
+			file.Path = shaPath[1]
+		} else {
+			file.Path = shaPath[0]
+		}
 
 		vhost.Files = append(vhost.Files, file)
 	}

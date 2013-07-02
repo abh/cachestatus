@@ -6,21 +6,41 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 type WorkerGroup struct {
-	vhost  *VHost
-	in     FileChannel
-	status *StatusBoard
-	n      int
+	vhost   *VHost
+	in      FileChannel
+	server  string
+	status  *StatusBoard
+	n       int
+	Options struct {
+		Checksum bool
+	}
+
+	out        chan FileStatus
+	sendStatus bool
+
+	QuitStatus chan bool
 }
 
-func NewWorkerGroup(vhost *VHost, status *StatusBoard, in FileChannel) *WorkerGroup {
+const TimeFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
+
+func NewWorkerGroup(vhost *VHost, server string, status *StatusBoard, in FileChannel) *WorkerGroup {
 	wg := new(WorkerGroup)
 	wg.in = in
 	wg.vhost = vhost
+	wg.server = server
 	wg.status = status
+	wg.QuitStatus = make(chan bool, 5)
 	return wg
+}
+
+func (wg *WorkerGroup) SetOutput(ch chan FileStatus) {
+	wg.out = ch
+	wg.sendStatus = true
 }
 
 func (wg *WorkerGroup) Start() {
@@ -37,32 +57,41 @@ func (wg *WorkerGroup) run(id int) {
 		// log.Printf("%d FILE: %#v\n", id, file)
 		if file == nil {
 			log.Println(id, "got nil file")
+			wg.status.UpdateStatusBoard(id, ".", "Exited")
+			wg.QuitStatus <- true
 			break
 		}
 
 		wg.getFile(id, client, file)
 	}
+
+	log.Printf("Worker %d done", id)
 }
 
 func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 
 	fs := new(FileStatus)
 	fs.Path = file.Path
-	defer wg.status.AddFileStatus(fs)
+	defer func() {
+		wg.status.AddFileStatus(fs)
+		if wg.sendStatus {
+			wg.out <- *fs
+		}
+		wg.status.UpdateStatusBoard(id, ".", "Idle")
+	}()
 
 	// log.Printf("%d Getting file '%s'\n", id, file.Path)
 	wg.status.UpdateStatusBoard(id, file.Path, "GET'ing")
 
-	host := "localhost"
-	// host = "flex02.lax04.netdna.com"
-
-	url := "http://" + host + file.Path
-	req, err := http.NewRequest("GET", "http://"+host+file.Path, nil)
+	url := "http://" + wg.server + file.Path
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Fatalf("Could not create for %s: %s", url, err)
 	}
 
-	req.Host = wg.vhost.Hostname
+	if len(wg.vhost.Hostname) > 0 {
+		req.Host = wg.vhost.Hostname
+	}
 
 	// log.Println("REQUEST", req)
 
@@ -90,10 +119,39 @@ func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 
 	if cacheStatus != "HIT" {
 		fs.Miss = true
-		if cacheStatus == "" {
-			cacheStatus = "[no cache status]"
-		}
+		// if cacheStatus == "" {
+		// cacheStatus = "[no cache status]"
+		// }
 		log.Printf("%s: %s\n", file.Path, cacheStatus)
+	}
+
+	if t, err := time.Parse(TimeFormat, resp.Header.Get("Last-Modified")); err == nil {
+		fs.LastModified = t
+		if !file.LastModified.IsZero() && file.LastModified != t {
+			log.Printf("Last-Modified not matching for '%s' (got '%s', expected '%s')",
+				file.Path, t, file.LastModified,
+			)
+		}
+	}
+
+	if !wg.Options.Checksum {
+		cl := resp.Header.Get("Content-Length")
+		if len(cl) > 0 {
+			size, err := strconv.Atoi(cl)
+			if err != nil {
+				log.Printf("Could not parse Content-Length (%s) from '%s': %s", cl, file.Path, err)
+			} else {
+				fs.Size = int64(size)
+				if file.Size > 0 && fs.Size != file.Size {
+					fs.BadSize = true
+					log.Printf("'%s' has wrong Content-Length (%d, expected %d)\n", file.Path, fs.Size, file.Size)
+				}
+			}
+		} else {
+			log.Printf("No Content-Length header for '%s'\n", file.Path)
+		}
+
+		return
 	}
 
 	wg.status.UpdateStatusBoard(id, file.Path, "Checking checksum")
@@ -105,10 +163,15 @@ func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 		log.Printf("%d Could not read file '%s': %s", id, file.Path, err)
 		return
 	}
+	fs.Size = size
+	if file.Size > 0 && fs.Size != file.Size {
+		fs.BadSize = true
+		log.Printf("'%s' has wrong size (%d, expected %d)\n", file.Path, fs.Size, file.Size)
+	}
 
-	file.Sha256Actual = hex.EncodeToString(sha.Sum(nil))
+	fs.Checksum = hex.EncodeToString(sha.Sum(nil))
 
-	if file.Sha256Actual != file.Sha256Expected {
+	if len(file.Sha256Expected) > 0 && fs.Checksum != file.Sha256Expected {
 		fs.BadChecksum = true
 		log.Printf("%d Wrong SHA256 for '%s' (size %d)\n", id, file.Path, size)
 	} else {

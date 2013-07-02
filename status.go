@@ -13,8 +13,11 @@ type StatusBoard struct {
 	Misses       int
 	BadRequests  int
 	BadChecksums int
+	BadSizes     int
+	ReadErrors   int
 
-	mu sync.Mutex
+	mu   sync.Mutex
+	quit chan bool
 }
 
 type WorkerStatus struct {
@@ -23,16 +26,21 @@ type WorkerStatus struct {
 }
 
 type FileStatus struct {
-	Path        string
-	BadChecksum bool
-	BadRequest  bool
-	ReadError   bool
-	Miss        bool
+	Path         string
+	Size         int64
+	Checksum     string
+	LastModified time.Time
+	BadSize      bool
+	BadChecksum  bool
+	BadRequest   bool
+	ReadError    bool
+	Miss         bool
 }
 
 func NewStatus(nworkers int) *StatusBoard {
 	status := new(StatusBoard)
 	status.Status = make([]*WorkerStatus, nworkers)
+	status.quit = make(chan bool)
 
 	for n := 0; n < nworkers; n++ {
 		status.Status[n] = new(WorkerStatus)
@@ -41,22 +49,39 @@ func NewStatus(nworkers int) *StatusBoard {
 	return status
 }
 
+func (s *StatusBoard) Quit() {
+	s.quit <- true
+}
+
 func (s *StatusBoard) Printer() {
+
+	tick := time.Tick(5 * time.Second)
+
 	for {
 
-		s.mu.Lock()
+		select {
+		case <-s.quit:
+			log.Println("StatusBoard got quit signal")
+			return
 
-		// terminal.Stdout.Reset()
-		// terminal.Stdout.Clear()
+		case <-tick:
 
-		log.Printf("Files: %6d  Misses: %4d  BadRequest: %d  Checksums: %d\n",
-			s.Checks, s.Misses,
-			s.BadRequests, s.BadChecksums,
-		)
+			s.mu.Lock()
 
-		s.mu.Unlock()
+			// terminal.Stdout.Reset()
+			// terminal.Stdout.Clear()
 
-		time.Sleep(4 * time.Second)
+			log.Printf("Files: %6d  Misses: %4d  BadRequest: %d  Sizes: %d  Checksums: %d  ReadError: %d\n",
+				s.Checks, s.Misses,
+				s.BadRequests, s.BadSizes,
+				s.BadChecksums,
+				s.ReadErrors,
+			)
+
+			s.mu.Unlock()
+
+			time.Sleep(4 * time.Second)
+		}
 	}
 }
 
@@ -85,6 +110,12 @@ func (s *StatusBoard) AddFileStatus(fs *FileStatus) {
 	}
 	if fs.BadRequest {
 		s.BadRequests++
+	}
+	if fs.BadSize {
+		s.BadSizes++
+	}
+	if fs.ReadError {
+		s.ReadErrors++
 	}
 	if fs.Miss {
 		s.Misses++
