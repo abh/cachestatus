@@ -27,4 +27,45 @@ For example
     	-filelist=http://localhost/files.txt \
     	-server origin.example.com
 
-To also calculate checksums, add `-checksum`.
+To also calculate checksums, add `-checksum` (recommended).
+
+## Check/prime cache
+
+Example:
+
+	./cachestatus \
+	  -filelist http://storage.example.com/files.json \
+	  -server localhost \
+	  -hostname cdn.example.com \
+	  -workers 4 \
+	  -checksum
+
+## All options
+
+* -checksum
+
+Check checksums on filse (recommended if testing localhost). A side-effect of doing this is that
+on cache misses the program will wait until the file has downloaded before triggering the next
+file filling into the cache, too (etc).
+
+Also doing a checksum is the only way to make really really sure the file is right.
+
+* -createmanifest=/path/file.json
+
+Create a json manifest from the (typically text) filelist.
+
+* -filelist=http://...
+
+List of files or manifest to check (see above).
+
+* -hostname=cdn.example.com
+
+Hostname to use in the Host: header (optional).
+
+* -server=origin.example.com
+
+Server to fetch files from (defaults to localhost).
+
+* -workers=n
+
+Set the number of workers (concurrent downloads). The number of CPUs used will be half of what's available in the system or 6, whichever is lower.
