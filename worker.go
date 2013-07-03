@@ -56,7 +56,7 @@ func (wg *WorkerGroup) run(id int) {
 		// log.Printf("%d FILE: %#v\n", id, file)
 		if file == nil {
 			// log.Println(id, "got nil file")
-			wg.status.UpdateStatusBoard(id, ".", "Exited", 'x')
+			wg.status.UpdateStatusBoard(id, ".", "Done", 'x')
 			break
 		}
 

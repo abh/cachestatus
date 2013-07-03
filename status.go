@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -16,8 +17,9 @@ type StatusBoard struct {
 	BadSizes     int
 	ReadErrors   int
 
-	mu   sync.Mutex
-	quit chan bool
+	mu         sync.Mutex
+	quit       chan bool
+	statusLine chan string
 }
 
 type WorkerStatus struct {
@@ -42,9 +44,11 @@ func NewStatus(nworkers int) *StatusBoard {
 	status := new(StatusBoard)
 	status.Status = make([]*WorkerStatus, nworkers)
 	status.quit = make(chan bool)
+	status.statusLine = make(chan string)
 
 	for n := 0; n < nworkers; n++ {
 		status.Status[n] = new(WorkerStatus)
+		status.Status[n].Mark = ' '
 	}
 
 	return status
@@ -61,36 +65,45 @@ func (s *StatusBoard) Printer() {
 
 	for {
 
-		statusLine := make([]byte, len(s.Status))
-
 		select {
 		case <-s.quit:
 			return
 
+		case s.statusLine <- s.string():
+
 		case <-tick:
-
-			s.mu.Lock()
-
-			// terminal.Stdout.Reset()
-			// terminal.Stdout.Clear()
-
-			for n, st := range s.Status {
-				statusLine[n] = st.Mark
-			}
-
-			log.Printf("%s Files: %6d  Misses: %4d  BadRequest: %d  Sizes: %d  Checksums: %d  ReadError: %d\n",
-				string(statusLine),
-				s.Checks, s.Misses,
-				s.BadRequests, s.BadSizes,
-				s.BadChecksums,
-				s.ReadErrors,
-			)
-
-			s.mu.Unlock()
-
-			time.Sleep(4 * time.Second)
+			log.Print(s.string())
 		}
 	}
+}
+
+func (s *StatusBoard) String() string {
+	return <-s.statusLine
+}
+
+func (s *StatusBoard) string() string {
+
+	statusLine := make([]byte, len(s.Status))
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// terminal.Stdout.Reset()
+	// terminal.Stdout.Clear()
+
+	for n, st := range s.Status {
+		statusLine[n] = st.Mark
+	}
+
+	return fmt.Sprintf("%s Files: %6d  Misses: %4d  BadRequest: %d  SizeErrors: %d  Checksums: %d  ReadError: %d\n",
+		string(statusLine),
+		s.Checks, s.Misses,
+		s.BadRequests,
+		s.BadSizes,
+		s.BadChecksums,
+		s.ReadErrors,
+	)
+
 }
 
 func (s *StatusBoard) UpdateStatusBoard(id int, path, status string, mark byte) {

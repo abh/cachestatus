@@ -136,6 +136,8 @@ func main() {
 		fmt.Println(path)
 	}
 
+	log.Println(status.String())
+
 	status.Quit()
 
 	log.Println("exiting")
