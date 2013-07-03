@@ -152,6 +152,14 @@ func getFileList(vhost *VHost) error {
 		return fmt.Errorf("Could not get file list '%s': %d", url, resp.StatusCode)
 	}
 
+	if strings.HasSuffix(url, ".json") {
+		files, err := ReadManifest(resp.Body)
+		if err != nil {
+			log.Fatalf("Error parsing manifest %s: %s", url, err)
+		}
+		vhost.Files = files
+	}
+
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		shaPath := strings.SplitN(scanner.Text(), "  .", 2)

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -18,6 +20,31 @@ type ManifestEntry struct {
 	Size         int64
 	Checksum     string `json:",omitempty"`
 	LastModified time.Time
+}
+
+func ReadManifest(body io.Reader) ([]*File, error) {
+
+	files := make([]*File, 0)
+
+	entry := new(ManifestEntry)
+
+	scanner := bufio.NewScanner(body)
+	for scanner.Scan() {
+		err := json.Unmarshal(scanner.Bytes(), entry)
+		if err != nil {
+			return nil, err
+		}
+
+		file := new(File)
+		file.Path = entry.Path
+		file.Size = entry.Size
+		file.Sha256Expected = entry.Checksum
+		file.LastModified = entry.LastModified
+
+		files = append(files, file)
+	}
+	return files, nil
+
 }
 
 func CreateManifest(path string) (*Manifest, error) {
