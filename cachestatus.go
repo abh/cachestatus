@@ -89,7 +89,7 @@ func main() {
 
 	workQueue := make(FileChannel)
 
-	nworkers := 10
+	nworkers := 6
 
 	status := NewStatus(nworkers)
 
