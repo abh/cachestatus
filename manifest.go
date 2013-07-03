@@ -28,6 +28,7 @@ func CreateManifest(path string) (*Manifest, error) {
 	m := new(Manifest)
 	m.fh = fh
 	m.in = make(chan FileStatus, 200)
+	m.quit = make(chan bool)
 	go m.readQ()
 	return m, nil
 }

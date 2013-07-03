@@ -22,8 +22,6 @@ type WorkerGroup struct {
 
 	out        chan FileStatus
 	sendStatus bool
-
-	QuitStatus chan bool
 }
 
 const TimeFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
@@ -34,7 +32,6 @@ func NewWorkerGroup(vhost *VHost, server string, status *StatusBoard, in FileCha
 	wg.vhost = vhost
 	wg.server = server
 	wg.status = status
-	wg.QuitStatus = make(chan bool, 5)
 	return wg
 }
 
@@ -52,20 +49,21 @@ func (wg *WorkerGroup) run(id int) {
 
 	client := &http.Client{}
 
+	wg.status.UpdateStatusBoard(id, ".", "Starting")
+
 	for {
 		file := <-wg.in
 		// log.Printf("%d FILE: %#v\n", id, file)
 		if file == nil {
-			log.Println(id, "got nil file")
+			// log.Println(id, "got nil file")
 			wg.status.UpdateStatusBoard(id, ".", "Exited")
-			wg.QuitStatus <- true
 			break
 		}
 
 		wg.getFile(id, client, file)
 	}
 
-	log.Printf("Worker %d done", id)
+	// log.Printf("Worker %d done", id)
 }
 
 func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {

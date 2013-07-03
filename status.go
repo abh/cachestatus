@@ -78,6 +78,13 @@ func (s *StatusBoard) Printer() {
 				s.ReadErrors,
 			)
 
+			for n, st := range s.Status {
+				if st.Current == "." {
+					continue
+				}
+				log.Println(n, st.Current, st.Status)
+			}
+
 			s.mu.Unlock()
 
 			time.Sleep(4 * time.Second)

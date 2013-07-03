@@ -109,7 +109,6 @@ func main() {
 	}
 
 	for n := 0; n < nworkers; n++ {
-		log.Println("starting worker", n)
 		go w.Start()
 	}
 
@@ -121,11 +120,12 @@ func main() {
 	}
 
 	for n := 0; n < nworkers; n++ {
-		log.Println("closing workers", n)
+		// this isn't buffered so it makes sure each worker is idle
+		// before we continue
 		workQueue <- nil
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	for n, st := range status.Status {
 		log.Println(n, st.Current, st.Status)
@@ -161,6 +161,9 @@ func getFileList(vhost *VHost) error {
 			file.Path = shaPath[1]
 		} else {
 			file.Path = shaPath[0]
+		}
+		if len(file.Path) == 0 {
+			continue
 		}
 
 		vhost.Files = append(vhost.Files, file)
