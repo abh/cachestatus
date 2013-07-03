@@ -34,6 +34,7 @@ var (
 	flagServer             = flag.String("server", "localhost", "Server to check")
 	flagHostname           = flag.String("hostname", "", "Host header for checks or source for creating manifest")
 	flagChecksum           = flag.Bool("checksum", false, "Check (or create) checksums")
+	flagWorkers            = flag.Int("workers", 6, "How many concurrent requests to make")
 	flagVersion            = flag.Bool("version", false, "Show version")
 	flagVerbose            = flag.Bool("verbose", false, "Verbose output")
 )
@@ -89,7 +90,7 @@ func main() {
 
 	workQueue := make(FileChannel)
 
-	nworkers := 6
+	nworkers := *flagWorkers
 
 	status := NewStatus(nworkers)
 
