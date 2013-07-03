@@ -49,14 +49,14 @@ func (wg *WorkerGroup) run(id int) {
 
 	client := &http.Client{}
 
-	wg.status.UpdateStatusBoard(id, ".", "Starting")
+	wg.status.UpdateStatusBoard(id, ".", "Starting", 'b')
 
 	for {
 		file := <-wg.in
 		// log.Printf("%d FILE: %#v\n", id, file)
 		if file == nil {
 			// log.Println(id, "got nil file")
-			wg.status.UpdateStatusBoard(id, ".", "Exited")
+			wg.status.UpdateStatusBoard(id, ".", "Exited", 'x')
 			break
 		}
 
@@ -75,11 +75,11 @@ func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 		if wg.sendStatus {
 			wg.out <- *fs
 		}
-		wg.status.UpdateStatusBoard(id, ".", "Idle")
+		wg.status.UpdateStatusBoard(id, ".", "Idle", '.')
 	}()
 
 	// log.Printf("%d Getting file '%s'\n", id, file.Path)
-	wg.status.UpdateStatusBoard(id, file.Path, "GET'ing")
+	wg.status.UpdateStatusBoard(id, file.Path, "Making request", 's')
 
 	url := "http://" + wg.server + file.Path
 	req, err := http.NewRequest("GET", url, nil)
@@ -101,7 +101,7 @@ func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 	}
 	defer resp.Body.Close()
 
-	wg.status.UpdateStatusBoard(id, file.Path, "Reading response")
+	wg.status.UpdateStatusBoard(id, file.Path, "Reading response", 'r')
 
 	// log.Println("File", url)
 	// log.Println("Status", resp.StatusCode, resp.Status)
@@ -150,9 +150,10 @@ func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 		}
 
 		return
+
 	}
 
-	wg.status.UpdateStatusBoard(id, file.Path, "Checking checksum")
+	wg.status.UpdateStatusBoard(id, file.Path, "Reading response, making checksum", 'r')
 
 	sha := sha256.New()
 	size, err := io.Copy(sha, resp.Body)
@@ -168,6 +169,8 @@ func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 	}
 
 	fs.Checksum = hex.EncodeToString(sha.Sum(nil))
+
+	// log.Printf("expected checksum for '%s': %s, got %s", file.Path, file.Sha256Expected, fs.Checksum)
 
 	if len(file.Sha256Expected) > 0 && fs.Checksum != file.Sha256Expected {
 		fs.BadChecksum = true

@@ -128,7 +128,7 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	for n, st := range status.Status {
-		log.Println(n, st.Current, st.Status)
+		log.Println(n, st.Path, st.Status, st.Mark)
 	}
 
 	for _, path := range status.BadFiles {

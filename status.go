@@ -21,8 +21,9 @@ type StatusBoard struct {
 }
 
 type WorkerStatus struct {
-	Current string
-	Status  string
+	Path   string
+	Status string
+	Mark   byte
 }
 
 type FileStatus struct {
@@ -51,17 +52,19 @@ func NewStatus(nworkers int) *StatusBoard {
 
 func (s *StatusBoard) Quit() {
 	s.quit <- true
+	close(s.quit)
 }
 
 func (s *StatusBoard) Printer() {
 
-	tick := time.Tick(5 * time.Second)
+	tick := time.Tick(10 * time.Second)
 
 	for {
 
+		statusLine := make([]byte, len(s.Status))
+
 		select {
 		case <-s.quit:
-			log.Println("StatusBoard got quit signal")
 			return
 
 		case <-tick:
@@ -71,19 +74,17 @@ func (s *StatusBoard) Printer() {
 			// terminal.Stdout.Reset()
 			// terminal.Stdout.Clear()
 
-			log.Printf("Files: %6d  Misses: %4d  BadRequest: %d  Sizes: %d  Checksums: %d  ReadError: %d\n",
+			for n, st := range s.Status {
+				statusLine[n] = st.Mark
+			}
+
+			log.Printf("%s Files: %6d  Misses: %4d  BadRequest: %d  Sizes: %d  Checksums: %d  ReadError: %d\n",
+				string(statusLine),
 				s.Checks, s.Misses,
 				s.BadRequests, s.BadSizes,
 				s.BadChecksums,
 				s.ReadErrors,
 			)
-
-			for n, st := range s.Status {
-				if st.Current == "." {
-					continue
-				}
-				log.Println(n, st.Current, st.Status)
-			}
 
 			s.mu.Unlock()
 
@@ -92,17 +93,19 @@ func (s *StatusBoard) Printer() {
 	}
 }
 
-func (s *StatusBoard) UpdateStatusBoard(id int, path, status string) {
+func (s *StatusBoard) UpdateStatusBoard(id int, path, status string, mark byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if len(path) > 0 {
-		s.Status[id].Current = path
+		s.Status[id].Path = path
 	}
 
 	if len(status) > 0 {
 		s.Status[id].Status = status
 	}
+
+	s.Status[id].Mark = mark
 }
 
 func (s *StatusBoard) AddFileStatus(fs *FileStatus) {
