@@ -92,7 +92,7 @@ func main() {
 
 	nworkers := *flagWorkers
 
-	status := NewStatus(nworkers)
+	status := NewStatusBoard(nworkers)
 
 	w := NewWorkerGroup(vhost, *flagServer, status, workQueue)
 
@@ -129,7 +129,7 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	for n, st := range status.Status {
-		log.Println(n, st.Path, st.Status, st.Mark)
+		log.Println(n, st.Path, st.Status, string(st.Mark))
 	}
 
 	for _, path := range status.BadFiles {

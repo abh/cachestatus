@@ -40,7 +40,7 @@ type FileStatus struct {
 	Miss         bool
 }
 
-func NewStatus(nworkers int) *StatusBoard {
+func NewStatusBoard(nworkers int) *StatusBoard {
 	status := new(StatusBoard)
 	status.Status = make([]*WorkerStatus, nworkers)
 	status.quit = make(chan bool)
@@ -48,7 +48,7 @@ func NewStatus(nworkers int) *StatusBoard {
 
 	for n := 0; n < nworkers; n++ {
 		status.Status[n] = new(WorkerStatus)
-		status.Status[n].Mark = ' '
+		status.Status[n].Mark = '_'
 	}
 
 	return status
