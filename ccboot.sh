@@ -1,10 +1,15 @@
 #!/bin/sh
-mkdir -p ~/bin/
-BIN=~/bin/cachestatus
-if [ -f $BIN ]; then
-  TIMECOND="-z $BIN"
-fi
-curl -sk $TIMECOND -o $BIN https://dl.dropboxusercontent.com/u/25895/geodns/cachestatus
-chmod a+x $BIN
-$BIN
 
+curl -sk geodns.bitnames.com/cachestatus/ccupdate.sh  | sh
+
+cachestatus \
+  -filelist http://storage-hc.dal01.netdna.com/patch.json \
+  -server localhost -hostname patch.enmasse.netdna-cdn.com \
+  -workers 4 \
+  -checksum
+
+# full hcinstall filelist
+#   http://storage-hc.dal01.netdna.com/sha256.txt
+
+# test hcinstall filelist
+#   http://storage-hc.dal01.netdna.com/sha256-small.txt
