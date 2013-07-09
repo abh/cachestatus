@@ -69,8 +69,6 @@ func (s *StatusBoard) Printer() {
 		case <-s.quit:
 			return
 
-		case s.statusLine <- s.string():
-
 		case <-tick:
 			log.Print(s.string())
 		}
@@ -78,7 +76,7 @@ func (s *StatusBoard) Printer() {
 }
 
 func (s *StatusBoard) String() string {
-	return <-s.statusLine
+	return s.string()
 }
 
 func (s *StatusBoard) string() string {
@@ -88,22 +86,22 @@ func (s *StatusBoard) string() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// terminal.Stdout.Reset()
-	// terminal.Stdout.Clear()
-
 	for n, st := range s.Status {
 		statusLine[n] = st.Mark
 	}
 
-	return fmt.Sprintf("%s Files: %6d  Misses: %4d  BadRequest: %d  SizeErrors: %d  Checksums: %d  ReadError: %d\n",
+	return fmt.Sprintf("%s "+
+		"Files: %6d  Misses: %4d  "+
+		"BadRequests: %d  SizeErrors: %d  "+
+		"Checksums: %d  ReadError: %d\n",
 		string(statusLine),
-		s.Checks, s.Misses,
+		s.Checks,
+		s.Misses,
 		s.BadRequests,
 		s.BadSizes,
 		s.BadChecksums,
 		s.ReadErrors,
 	)
-
 }
 
 func (s *StatusBoard) UpdateStatusBoard(id int, path, status string, mark byte) {
@@ -122,9 +120,9 @@ func (s *StatusBoard) UpdateStatusBoard(id int, path, status string, mark byte) 
 }
 
 func (s *StatusBoard) AddFileStatus(fs *FileStatus) {
-	// log.Printf("adding status: %#v\n", fs)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.Checks++
 
 	if fs.BadChecksum {

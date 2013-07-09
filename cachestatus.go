@@ -26,7 +26,7 @@ type File struct {
 
 type FileChannel chan *File
 
-var VERSION string = "1.1"
+var VERSION string = "1.2"
 
 var (
 	flagListLocation       = flag.String("filelist", "", "URL for filelist or manifest")
