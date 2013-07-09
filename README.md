@@ -8,6 +8,8 @@ The tool supports text files with a file per line or a special json manifest fil
 
 The input file will be fetched over http and the URL is specified with the -filelist parameter.
 
+You can also specify a local file url: file:///some/path/file.txt or /some/path/file.txt
+
 The text files can be in the format
 
     sha256  ./path/to/file

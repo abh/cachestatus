@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -137,33 +139,57 @@ func main() {
 	}
 
 	log.Println(status.String())
-
 	status.Quit()
 
 	log.Println("exiting")
 }
 
+func openURL(rawurl string) (io.ReadCloser, error) {
+	u, err := url.Parse(rawurl)
+
+	if err != nil {
+		return nil, fmt.Errorf("Could not parse url '%s': %s", rawurl, err)
+	}
+
+	if u.Scheme == "file" || (u.Scheme == "" && strings.HasPrefix(rawurl, "/")) {
+		path := rawurl
+		if len(u.Path) > 0 {
+			path = u.Path
+		}
+		fh, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		return fh, nil
+	}
+
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Could not get file list '%s': %d", u.String(), resp.StatusCode)
+	}
+	return resp.Body, nil
+}
+
 func getFileList(vhost *VHost) error {
 	url := vhost.FileListLocation
-	resp, err := http.Get(url)
+	body, err := openURL(url)
 	if err != nil {
 		return fmt.Errorf("Could not get url %v: %v", url, err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("Could not get file list '%s': %d", url, resp.StatusCode)
-	}
+	defer body.Close()
 
 	if strings.HasSuffix(url, ".json") {
-		files, err := ReadManifest(resp.Body)
+		files, err := ReadManifest(body)
 		if err != nil {
 			log.Fatalf("Error parsing manifest %s: %s", url, err)
 		}
 		vhost.Files = files
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
 		shaPath := strings.SplitN(scanner.Text(), "  .", 2)
 		file := new(File)
