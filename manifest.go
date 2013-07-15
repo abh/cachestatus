@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -29,9 +30,12 @@ func ReadManifest(body io.Reader) ([]*File, error) {
 	entry := new(ManifestEntry)
 
 	scanner := bufio.NewScanner(body)
+	line := 0
 	for scanner.Scan() {
+		line++
 		err := json.Unmarshal(scanner.Bytes(), entry)
 		if err != nil {
+			err = fmt.Errorf("%s, line %d: '%s'", err, line, scanner.Bytes())
 			return nil, err
 		}
 
