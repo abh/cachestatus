@@ -2,7 +2,7 @@ DROPBOX=~/Dropbox/Public/geodns/cachestatus
 
 all:
 
-sh: $(DROPBOX)/ccupdate.sh $(DROPBOX)/ccboot.sh
+sh: $(DROPBOX)/ccupdate.sh
 
 linux: sh
 	GOOS=linux \
@@ -13,9 +13,6 @@ linux: sh
 
 $(DROPBOX)/ccupdate.sh: ccupdate.sh
 	cp ccupdate.sh $(DROPBOX)
-
-$(DROPBOX)/ccboot.sh: ccboot.sh
-	cp ccboot.sh $(DROPBOX)
 
 push:
 	( cd $(DROPBOX); sh ../push )
