@@ -115,6 +115,13 @@ func (wg *WorkerGroup) getFile(id int, client *http.Client, file *File) {
 
 	cacheStatus := resp.Header.Get("X-Cache")
 
+	if len(cacheStatus) == 0 {
+		age := resp.Header.Get("Age")
+		if len(age) > 0 && age != "0" {
+			cacheStatus = "HIT"
+		}
+	}
+
 	if cacheStatus != "HIT" {
 		fs.Miss = true
 		// if cacheStatus == "" {
